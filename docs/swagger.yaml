@@ -1,0 +1,664 @@
+openapi: 3.0.0
+info:
+  title: Ellty second task
+  version: 1.0.38
+  description: API documentation for the Ellty second task
+  contact:
+    name: Mohammed Taysser
+    url: https://github.com/mohammed-taysser
+    email: mohamedtaysser983@gmail.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+externalDocs:
+  description: GitHub Repository
+  url: https://github.com/mohammed-taysser/ellty-second-task
+
+servers:
+  - url: /api
+    description: Development server
+
+  - url: '{server}/api'
+    description: Production server with custom domain
+    variables:
+      server:
+        default: ''
+  - url: '/'
+    description: Root server for non-API endpoints (e.g., /health)
+tags:
+  - name: Auth
+    description: Authentication related endpoints
+
+  - name: Users
+    description: User-related operations
+
+security:
+  - bearerAuth: []
+
+paths:
+  /health:
+    get:
+      tags: [System]
+      summary: Health check
+      responses:
+        200:
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, password]
+              properties:
+                name:
+                  type: string
+                  format: string
+                  example: 'John Doe'
+                email:
+                  type: string
+                  format: email
+                  example: 'john@example.com'
+                password:
+                  type: string
+                  format: password
+                  example: 'StrongPassword123'
+                role:
+                  type: string
+                  default: CUSTOMER
+                  format: string
+                  enum: [CUSTOMER, OWNER, ADMIN]
+      responses:
+        201:
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AuthResponse'
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login a user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: admin@demo.com
+                password:
+                  type: string
+                  format: password
+                  example: '123456789'
+      responses:
+        200:
+          description: Successful login
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AuthResponse'
+
+  /auth/refresh-token:
+    post:
+      tags: [Auth]
+      summary: Refresh access token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken:
+                  type: string
+      responses:
+        200:
+          description: New access token
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          accessToken:
+                            type: string
+                          refreshToken:
+                            type: string
+ 
+  /users/me:
+    get:
+      tags: [Users]
+      summary: Get current user
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: Current user
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/User'
+
+    patch:
+      tags: [Users]
+      summary: Update current user
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                email:
+                  type: string
+                password:
+                  type: string
+                role:
+                  type: string
+                  enum: [CUSTOMER, OWNER, ADMIN]
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                email:
+                  type: string
+                password:
+                  type: string
+                role:
+                  type: string
+                  enum: [CUSTOMER, OWNER, ADMIN]
+                image:
+                  type: string
+                  format: binary
+
+      responses:
+        200:
+          description: User updated successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/User'
+
+ 
+  /users:
+    get:
+      summary: Get all users
+      tags:
+        - Users
+      parameters:
+        - $ref: '#/components/parameters/PageParameter'
+        - $ref: '#/components/parameters/LimitParameter'
+        - in: query
+          name: name
+          schema: { type: string, minLength: 3, maxLength: 100 }
+        - in: query
+          name: role
+          description: Comma-separated roles
+          schema:
+            type: string
+            example: ADMIN,OWNER
+        - in: query
+          name: email
+          schema: { type: string, maxLength: 100 }
+        - in: query
+          name: failedLoginAttempts
+          schema: { type: integer, minimum: 0, maximum: 50 }
+        - in: query
+          name: lastFailedLogin[startDate]
+          schema: { type: string, format: date-time }
+        - in: query
+          name: lastFailedLogin[endDate]
+          schema: { type: string, format: date-time }
+        - in: query
+          name: isEmailVerified
+          schema: { type: boolean }
+        - in: query
+          name: isPhoneVerified
+          schema: { type: boolean }
+        - in: query
+          name: isActive
+          schema: { type: boolean }
+        - in: query
+          name: maxTokens
+          schema: { type: integer, minimum: 0, maximum: 100 }
+        - in: query
+          name: isBlocked
+          schema: { type: boolean }
+        - in: query
+          name: blockedAt[startDate]
+          schema: { type: string, format: date-time }
+        - in: query
+          name: blockedAt[endDate]
+          schema: { type: string, format: date-time }
+        - in: query
+          name: blockedById
+          schema: { type: string, minLength: 5, maxLength: 100 }
+        - in: query
+          name: createdAt[startDate]
+          schema: { type: string, format: date-time }
+        - in: query
+          name: createdAt[endDate]
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: All users
+                  data:
+                    type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/User'
+                      metadata:
+                        $ref: '#/components/schemas/PaginationMetadata'
+
+    post:
+      summary: Create a new user
+      tags:
+        - Users
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - email
+                - password
+                - role
+              properties:
+                name:
+                  type: string
+                email:
+                  type: string
+                password:
+                  type: string
+                role:
+                  type: string
+                  enum: [CUSTOMER, OWNER, ADMIN]
+      responses:
+        '201':
+          description: User created successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/User'
+
+  /users/list:
+    get:
+      summary: Get a list of users
+      tags:
+        - Users
+      parameters:
+        - $ref: '#/components/parameters/PageParameter'
+        - $ref: '#/components/parameters/LimitParameter'
+        - in: query
+          name: name
+          schema: { type: string, minLength: 3, maxLength: 100 }
+        - in: query
+          name: role
+          description: Comma-separated roles
+          schema:
+            type: string
+            example: ADMIN,OWNER
+        - in: query
+          name: email
+          schema: { type: string, maxLength: 100 }
+        - in: query
+          name: failedLoginAttempts
+          schema: { type: integer, minimum: 0, maximum: 50 }
+        - in: query
+          name: lastFailedLogin[startDate]
+          schema: { type: string, format: date-time }
+        - in: query
+          name: lastFailedLogin[endDate]
+          schema: { type: string, format: date-time }
+        - in: query
+          name: isEmailVerified
+          schema: { type: boolean }
+        - in: query
+          name: isPhoneVerified
+          schema: { type: boolean }
+        - in: query
+          name: isActive
+          schema: { type: boolean }
+        - in: query
+          name: maxTokens
+          schema: { type: integer, minimum: 0, maximum: 100 }
+        - in: query
+          name: isBlocked
+          schema: { type: boolean }
+        - in: query
+          name: blockedAt[startDate]
+          schema: { type: string, format: date-time }
+        - in: query
+          name: blockedAt[endDate]
+          schema: { type: string, format: date-time }
+        - in: query
+          name: blockedById
+          schema: { type: string, minLength: 5, maxLength: 100 }
+        - in: query
+          name: createdAt[startDate]
+          schema: { type: string, format: date-time }
+        - in: query
+          name: createdAt[endDate]
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: List of users
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListResponse'
+ 
+  /users/{userId}:
+    get:
+      summary: Get a user by ID
+      tags:
+        - Users
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+          description: The ID of the user
+      responses:
+        '200':
+          description: User found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: User found
+                  data:
+                    $ref: '#/components/schemas/User'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    patch:
+      summary: Update a user by ID
+      tags:
+        - Users
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+          description: The ID of the user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                email:
+                  type: string
+                password:
+                  type: string
+                role:
+                  type: string
+                  enum: [CUSTOMER, OWNER, ADMIN]
+
+      responses:
+        '200':
+          description: User updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: User updated
+                  data:
+                    $ref: '#/components/schemas/User'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      tags: [Users]
+      summary: Delete a user
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: User deleted successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        example: { deleted: true }
+ 
+ 
+components:
+  schemas:
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          format: boolean
+          example: true
+        message:
+          type: string
+          format: string
+          example: Operation completed successfully
+        data:
+          type: object
+          nullable: true
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          format: boolean
+          example: false
+        message:
+          type: string
+          format: string
+          example: Invalid input
+        statusCode:
+          type: integer
+          format: integer
+          example: 400
+        errors:
+          type: array
+          nullable: true
+          items:
+            type: string
+          example:
+            - Email is already registered
+            - Password must be at least 6 characters
+
+    PaginationMetadata:
+      type: object
+      properties:
+        total:
+          type: integer
+          example: 125
+        page:
+          type: integer
+          example: 2
+        limit:
+          type: integer
+          example: 10
+        totalPages:
+          type: integer
+          example: 13
+
+    ListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          format: boolean
+          example: true
+        message:
+          type: string
+          format: string
+          example: Operation completed successfully
+        data:
+          type: array
+          items:
+            properties:
+              id:
+                type: string
+                format: integer
+                example: 11
+              name:
+                type: string
+                example: John Doe
+
+    AuthResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        user:
+          $ref: '#/components/schemas/User'
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: integer
+          example: 1
+        name:
+          type: string
+          format: string
+          example: John Doe
+        username:
+          type: string
+          format: string
+          example: johndoe
+        createdAt:
+          type: string
+          format: date-time
+          example: 2022-01-01T00:00:00.000Z
+        updatedAt:
+          type: string
+          format: date-time
+          example: 2022-01-01T00:00:00.000Z
+ 
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from authentication endpoint
+
+  parameters:
+    PageParameter:
+      name: page
+      in: query
+      description: Page number
+      required: false
+      schema:
+        type: integer
+        default: 1
+        minimum: 1
+
+    LimitParameter:
+      name: limit
+      in: query
+      description: Number of items per page
+      required: false
+      schema:
+        type: integer
+        default: 10
+        minimum: 1
+        maximum: 500
