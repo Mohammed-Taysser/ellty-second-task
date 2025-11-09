@@ -7,17 +7,6 @@ interface AuthenticatedRequest<
   ReqBody = unknown,
   ReqQuery = unknown,
 > extends Request<Params, ResBody, ReqBody, ReqQuery> {
-  user: User & {
-    permissions: {
-      id: string;
-      key: string;
-    }[];
-    permissionGroups: {
-      permissions: {
-        id: string;
-        key: string;
-      }[];
-    }[];
-  };
+  user: User;
   parsedQuery: ReqQuery;
 }

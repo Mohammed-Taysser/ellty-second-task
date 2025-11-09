@@ -1,6 +1,6 @@
 type ErrorContent = string | Record<string, unknown> | unknown[];
 
 interface UserTokenPayload {
-  id: string;
+  id: number;
   email: string;
 }

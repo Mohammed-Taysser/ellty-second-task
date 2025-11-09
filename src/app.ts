@@ -9,7 +9,13 @@ import YAML from 'yamljs';
 
 import CONFIG from '@/apps/config';
 import errorHandlerMiddleware from '@/middleware/error-handler.middleware';
+import authRoutes from '@/modules/auth/auth.route';
+import systemRoutes from '@/modules/system/system.route';
+import userRoutes from '@/modules/user/user.route';
 import { ForbiddenError, NotFoundError } from '@/utils/errors.utils';
+import { logServerInfo } from '@/utils/system-info-logs';
+
+const startTime = Date.now();
 
 const app = express();
 
@@ -35,7 +41,11 @@ app.use(
 app.use(
   cors({
     origin(origin, callback) {
-      if (!origin || CONFIG.ALLOWED_ORIGINS.includes(origin)) {
+      if (
+        !origin ||
+        CONFIG.ALLOWED_ORIGINS.length === 0 ||
+        CONFIG.ALLOWED_ORIGINS.includes(origin)
+      ) {
         callback(null, true);
       } else {
         callback(new ForbiddenError(`CORS: Origin ${origin} is not allowed`));
@@ -52,9 +62,9 @@ app.use(express.json({ limit: '30mb' }));
 app.set('query parser', (str: string) => qs.parse(str));
 
 // Routes
-app.use('/', (_request, response) => {
-  response.json({ message: 'hello world' });
-});
+app.use('/', systemRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/auth', authRoutes);
 
 // 404 Handler
 app.use((req, _res, next) => {
@@ -65,7 +75,7 @@ app.use((req, _res, next) => {
 app.use(errorHandlerMiddleware);
 
 app.listen(CONFIG.PORT, () => {
-  console.debug(`🚀 Server running on port ${CONFIG.PORT}`);
+  logServerInfo(startTime);
 });
 
 export default app;

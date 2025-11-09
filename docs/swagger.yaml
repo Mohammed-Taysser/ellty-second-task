@@ -26,6 +26,9 @@ servers:
   - url: '/'
     description: Root server for non-API endpoints (e.g., /health)
 tags:
+  - name: System
+    description: System-level operations
+
   - name: Auth
     description: Authentication related endpoints
 
@@ -51,6 +54,7 @@ paths:
                   status:
                     type: string
                     example: ok
+
   /auth/register:
     post:
       tags: [Auth]
@@ -75,11 +79,7 @@ paths:
                   type: string
                   format: password
                   example: 'StrongPassword123'
-                role:
-                  type: string
-                  default: CUSTOMER
-                  format: string
-                  enum: [CUSTOMER, OWNER, ADMIN]
+
       responses:
         201:
           description: User registered successfully
@@ -195,9 +195,6 @@ paths:
                   type: string
                 password:
                   type: string
-                role:
-                  type: string
-                  enum: [CUSTOMER, OWNER, ADMIN]
           multipart/form-data:
             schema:
               type: object
@@ -208,9 +205,6 @@ paths:
                   type: string
                 password:
                   type: string
-                role:
-                  type: string
-                  enum: [CUSTOMER, OWNER, ADMIN]
                 image:
                   type: string
                   format: binary
@@ -241,47 +235,8 @@ paths:
           name: name
           schema: { type: string, minLength: 3, maxLength: 100 }
         - in: query
-          name: role
-          description: Comma-separated roles
-          schema:
-            type: string
-            example: ADMIN,OWNER
-        - in: query
           name: email
           schema: { type: string, maxLength: 100 }
-        - in: query
-          name: failedLoginAttempts
-          schema: { type: integer, minimum: 0, maximum: 50 }
-        - in: query
-          name: lastFailedLogin[startDate]
-          schema: { type: string, format: date-time }
-        - in: query
-          name: lastFailedLogin[endDate]
-          schema: { type: string, format: date-time }
-        - in: query
-          name: isEmailVerified
-          schema: { type: boolean }
-        - in: query
-          name: isPhoneVerified
-          schema: { type: boolean }
-        - in: query
-          name: isActive
-          schema: { type: boolean }
-        - in: query
-          name: maxTokens
-          schema: { type: integer, minimum: 0, maximum: 100 }
-        - in: query
-          name: isBlocked
-          schema: { type: boolean }
-        - in: query
-          name: blockedAt[startDate]
-          schema: { type: string, format: date-time }
-        - in: query
-          name: blockedAt[endDate]
-          schema: { type: string, format: date-time }
-        - in: query
-          name: blockedById
-          schema: { type: string, minLength: 5, maxLength: 100 }
         - in: query
           name: createdAt[startDate]
           schema: { type: string, format: date-time }
@@ -323,7 +278,6 @@ paths:
                 - name
                 - email
                 - password
-                - role
               properties:
                 name:
                   type: string
@@ -331,9 +285,6 @@ paths:
                   type: string
                 password:
                   type: string
-                role:
-                  type: string
-                  enum: [CUSTOMER, OWNER, ADMIN]
       responses:
         '201':
           description: User created successfully
@@ -359,47 +310,8 @@ paths:
           name: name
           schema: { type: string, minLength: 3, maxLength: 100 }
         - in: query
-          name: role
-          description: Comma-separated roles
-          schema:
-            type: string
-            example: ADMIN,OWNER
-        - in: query
           name: email
           schema: { type: string, maxLength: 100 }
-        - in: query
-          name: failedLoginAttempts
-          schema: { type: integer, minimum: 0, maximum: 50 }
-        - in: query
-          name: lastFailedLogin[startDate]
-          schema: { type: string, format: date-time }
-        - in: query
-          name: lastFailedLogin[endDate]
-          schema: { type: string, format: date-time }
-        - in: query
-          name: isEmailVerified
-          schema: { type: boolean }
-        - in: query
-          name: isPhoneVerified
-          schema: { type: boolean }
-        - in: query
-          name: isActive
-          schema: { type: boolean }
-        - in: query
-          name: maxTokens
-          schema: { type: integer, minimum: 0, maximum: 100 }
-        - in: query
-          name: isBlocked
-          schema: { type: boolean }
-        - in: query
-          name: blockedAt[startDate]
-          schema: { type: string, format: date-time }
-        - in: query
-          name: blockedAt[endDate]
-          schema: { type: string, format: date-time }
-        - in: query
-          name: blockedById
-          schema: { type: string, minLength: 5, maxLength: 100 }
         - in: query
           name: createdAt[startDate]
           schema: { type: string, format: date-time }
@@ -470,9 +382,6 @@ paths:
                   type: string
                 password:
                   type: string
-                role:
-                  type: string
-                  enum: [CUSTOMER, OWNER, ADMIN]
 
       responses:
         '200':
@@ -593,7 +502,7 @@ components:
           items:
             properties:
               id:
-                type: string
+                type: integer
                 format: integer
                 example: 11
               name:
@@ -614,17 +523,17 @@ components:
       type: object
       properties:
         id:
-          type: string
+          type: integer
           format: integer
           example: 1
         name:
           type: string
           format: string
           example: John Doe
-        username:
+        email:
           type: string
-          format: string
-          example: johndoe
+          format: email
+          example: John@example.com
         createdAt:
           type: string
           format: date-time

@@ -36,22 +36,26 @@ const envSchema = z.object({
 
 // Validate and catch errors with friendly messages
 // let CONFIG: z.infer<typeof envSchema>;
-const ennValidation = envSchema.safeParse(process.env);
+const envValidation = envSchema.safeParse(process.env);
 
-if (!ennValidation.success) {
+if (!envValidation.success) {
   console.error('❌ Environment variable validation failed:\n');
 
-  if (ennValidation.error instanceof z.ZodError) {
-    for (const issue of ennValidation.error.issues) {
+  if (envValidation.error instanceof z.ZodError) {
+    for (const issue of envValidation.error.issues) {
       console.error(`• ${issue.path.join('.')}: ${issue.message}`);
     }
   } else {
-    console.error(ennValidation.error);
+    console.error(envValidation.error);
   }
 
   process.exit(1); // Exit with failure
 }
 
-const CONFIG = ennValidation.data;
+if (envValidation.data.ALLOWED_ORIGINS.length === 0) {
+  console.warn('⚠️  ALLOWED_ORIGINS is empty, CORS is disabled');
+}
+
+const CONFIG = envValidation.data;
 
 export default CONFIG;
