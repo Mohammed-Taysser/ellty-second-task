@@ -12,7 +12,7 @@ const getUsersListSchema = {
 
 const getUserByIdSchema = {
   params: z.object({
-    userId: z.coerce.number().min(5).max(100),
+    userId: z.coerce.number().min(1).max(100),
   }),
 };
 

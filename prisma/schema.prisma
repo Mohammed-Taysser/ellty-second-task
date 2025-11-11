@@ -31,8 +31,7 @@ model Tree {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   nodes     Node[]
-  user      User?    @relation(fields: [userId], references: [id])
-  userId    Int?
+  user      User?    @relation(fields: [createdBy], references: [id])
 }
 
 model Node {
@@ -42,11 +41,10 @@ model Node {
   operation    OPERATION
   rightOperand Float
   value        Float
-  authorId     Int
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
-  user         User?     @relation(fields: [userId], references: [id])
-  userId       Int?
+  user         User?     @relation(fields: [createdBy], references: [id])
+  createdBy    Int
   tree         Tree      @relation(fields: [treeId], references: [id])
 }
 
