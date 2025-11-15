@@ -1,0 +1,15 @@
+@import "tailwindcss";
+
+@theme {
+  --color-aurora: #1890ff;
+}
+
+@font-face {
+  font-family: 'DINNextLTArabic';
+  src: local('DINNextLTArabic-Regular'), url('../fonts/DINNextLTArabic.ttf');
+}
+
+body {
+  font-family: 'DINNextLTArabic', sans-serif;
+  overflow-x: hidden;
+}
