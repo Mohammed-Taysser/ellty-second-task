@@ -4,7 +4,6 @@ import prisma from '@/apps/prisma';
 import tokenService from '@/services/token.service';
 import { AuthenticatedRequest } from '@/types/import';
 import { NotFoundError, UnauthorizedError } from '@/utils/errors.utils';
-import { TokenExpiredError } from 'jsonwebtoken';
 
 async function authenticateMiddleware(req: Request, _res: Response, next: NextFunction) {
   try {
@@ -47,8 +46,6 @@ async function authenticateMiddleware(req: Request, _res: Response, next: NextFu
 
     return next();
   } catch (error) {
-
-
     return next(error);
   }
 }

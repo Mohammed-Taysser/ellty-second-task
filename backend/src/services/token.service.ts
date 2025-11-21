@@ -2,6 +2,7 @@ import bcrypt from 'bcrypt';
 import jwt, { JwtPayload } from 'jsonwebtoken';
 
 import ennValidation from '@/apps/config';
+import { UnauthorizedError } from '@/utils/errors.utils';
 
 class TokenService {
   private readonly SECRET = ennValidation.JWT_SECRET;
@@ -36,7 +37,22 @@ class TokenService {
   }
 
   verifyToken<T extends JwtPayload = JwtPayload>(token: string): T {
-    return jwt.verify(token, this.SECRET) as T;
+    try {
+      return jwt.verify(token, this.SECRET) as T;
+    } catch (error) {
+      // Convert all JWT errors to UnauthorizedError
+      if (error instanceof jwt.TokenExpiredError) {
+        throw new UnauthorizedError('Token has expired');
+      }
+      if (error instanceof jwt.JsonWebTokenError) {
+        throw new UnauthorizedError('Invalid token');
+      }
+      if (error instanceof jwt.NotBeforeError) {
+        throw new UnauthorizedError('Token not yet valid');
+      }
+      // Re-throw any other unexpected errors
+      throw error;
+    }
   }
 }
 
