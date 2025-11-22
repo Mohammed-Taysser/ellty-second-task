@@ -1,9 +1,10 @@
 import discussionApi from '@/api/discussion.api';
+import operationApi from '@/api/operation.api';
 import { SITEMAP } from '@/apps/config';
 import OperationForm from '@/components/OperationForm';
 import AuthContext from '@/context/auth.context';
 import useApiMessage from '@/hooks/useApiMessage';
-import { Button, Card, Col, Empty, Row, Skeleton, Space, Timeline, Typography } from 'antd';
+import { Button, Card, Col, Empty, Modal, Row, Skeleton, Space, Timeline, Typography } from 'antd';
 import dayjs from 'dayjs';
 import { ArrowLeft, Calculator, Clock, MessageSquare, Plus, User } from 'lucide-react';
 import { useContext, useEffect, useMemo, useState } from 'react';
@@ -19,7 +20,7 @@ const DiscussionDetail = () => {
   const authContext = useContext(AuthContext);
 
   const [showOperationForm, setShowOperationForm] = useState(false);
-  const [selectedParentId, setSelectedParentId] = useState<Maybe<number>>();
+  const [selectedParentId, setSelectedParentId] = useState<number | null>();
 
   const [isLoading, setIsLoading] = useState(true);
   const [fetchedDiscussion, setFetchedDiscussion] = useState<Maybe<Discussion>>();
@@ -67,6 +68,31 @@ const DiscussionDetail = () => {
     return fetchedDiscussion.startingValue;
   }, [fetchedDiscussion]);
 
+  const handleAddRootOperation = () => {
+    if (!fetchedDiscussion) return;
+
+    setSelectedParentId(null); // null indicates root operation
+    setShowOperationForm(true);
+  };
+
+  const handleOperationSubmit = async (type: OperationType, operand: number) => {
+    if (!fetchedDiscussion) return;
+
+    try {
+      await operationApi.create({
+        operation: type,
+        value: operand,
+        parentId: selectedParentId,
+        discussionId: fetchedDiscussion.id,
+      });
+
+      setShowOperationForm(false);
+      fetchDiscussionByID(fetchedDiscussion.id);
+    } catch (error) {
+      displayErrorMessages(error);
+    }
+  };
+
   const getOperationSymbol = (type: OperationType) => {
     switch (type) {
       case 'ADD':
@@ -95,7 +121,22 @@ const DiscussionDetail = () => {
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: '#f5f5f5' }}>
-      <OperationForm currentValue={0} />
+      <Modal
+        open={showOperationForm}
+        onCancel={() => setShowOperationForm(false)}
+        footer={null}
+        destroyOnClose
+      >
+        <OperationForm
+          currentValue={
+            selectedParentId === null
+              ? fetchedDiscussion?.startingValue || 0
+              : fetchedDiscussion?.operations.find((op) => op.id === selectedParentId)?.afterValue || 0
+          }
+          onSubmit={handleOperationSubmit}
+          onCancel={() => setShowOperationForm(false)}
+        />
+      </Modal>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8">
@@ -151,10 +192,10 @@ const DiscussionDetail = () => {
                     <Text
                       strong
                       className={`font-mono text-xl ${currentValue > fetchedDiscussion.startingValue
-                          ? '!text-green-500'
-                          : currentValue < fetchedDiscussion.startingValue
-                            ? '!text-red-500'
-                            : '!text-gray-500'
+                        ? '!text-green-500'
+                        : currentValue < fetchedDiscussion.startingValue
+                          ? '!text-red-500'
+                          : '!text-gray-500'
                         }`}
                     >
                       Current: {currentValue.toFixed(2)}
@@ -166,7 +207,7 @@ const DiscussionDetail = () => {
                   <Button
                     type="primary"
                     size="large"
-                    // onClick={handleAddRootOperation}
+                    onClick={handleAddRootOperation}
                     icon={<Plus className="h-5 w-5" />}
                   >
                     Add Root Operation
@@ -194,7 +235,7 @@ const DiscussionDetail = () => {
                         type="primary"
                         size="large"
                         icon={<Plus className="h-5 w-5" />}
-                      // onClick={handleAddRootOperation}
+                        onClick={handleAddRootOperation}
                       >
                         Add Root Operation
                       </Button>

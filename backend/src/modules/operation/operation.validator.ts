@@ -17,11 +17,16 @@ const getOperationByIdSchema = {
 };
 
 const createOperationSchema = {
-  body: z.object({
-    operation: z.enum(OPERATION_TYPE),
-    value: z.coerce.number(),
-    parentId: z.coerce.number().positive().int(),
-  }),
+  body: z
+    .object({
+      operation: z.enum(OPERATION_TYPE),
+      value: z.coerce.number(),
+      parentId: z.coerce.number().positive().int().nullable().optional(),
+      discussionId: z.coerce.number().positive().int().optional(),
+    })
+    .refine((data) => data.parentId !== null || data.discussionId !== undefined, {
+      message: 'Either parentId or discussionId must be provided',
+    }),
 };
 
 type CreateOperationInput = z.infer<typeof createOperationSchema.body>;

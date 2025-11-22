@@ -10,3 +10,14 @@ interface Operation extends BaseEntity {
   afterValue: number;
   user: User;
 }
+
+interface CreateOperationPayload {
+  operation: OperationType;
+  value: number;
+  parentId?: number | null;
+  discussionId?: number;
+}
+
+interface UpdateOperationPayload extends CreateOperationPayload {
+  id: number;
+}

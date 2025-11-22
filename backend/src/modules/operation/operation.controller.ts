@@ -139,43 +139,71 @@ async function createOperation(request: Request, response: Response) {
 
   const { body, user } = authenticatedRequest;
 
-  const parentOperation = await prisma.operation.findUnique({
-    where: { id: body.parentId },
-  });
+  let beforeValue: number;
+  let discussionId: number;
 
-  if (!parentOperation) {
-    throw new NotFoundError('Parent operation not found');
+  if (body.parentId === null || body.parentId === undefined) {
+    // Root operation: get starting value from discussion
+    if (!body.discussionId) {
+      return response.status(400).json({ error: 'discussionId is required for root operations' });
+    }
+
+    const discussion = await prisma.discussion.findUnique({
+      where: { id: body.discussionId },
+    });
+
+    if (!discussion) {
+      throw new NotFoundError('Discussion not found');
+    }
+
+    beforeValue = discussion.startingValue;
+    discussionId = discussion.id;
+  } else {
+    // Child operation: get value from parent
+    const parentOperation = await prisma.operation.findUnique({
+      where: { id: body.parentId },
+    });
+
+    if (!parentOperation) {
+      throw new NotFoundError('Parent operation not found');
+    }
+
+    beforeValue = parentOperation.afterValue;
+    discussionId = parentOperation.discussionId;
   }
 
+  // Validate division by zero
   if (body.operation === 'DIVIDE' && body.value === 0) {
-    return response.status(400).json({ error: 'cannot divide by zero' });
+    return response.status(400).json({ error: 'Cannot divide by zero' });
   }
 
-  let operationValue = 0;
-
+  // Calculate afterValue based on operation type
+  let afterValue = beforeValue;
   switch (body.operation) {
     case 'ADD':
-      operationValue = parentOperation.totals + body.value;
+      afterValue = beforeValue + body.value;
       break;
     case 'SUBTRACT':
-      operationValue = parentOperation.totals - body.value;
+      afterValue = beforeValue - body.value;
       break;
     case 'MULTIPLY':
-      operationValue = parentOperation.totals * body.value;
+      afterValue = beforeValue * body.value;
       break;
     case 'DIVIDE':
-      operationValue = parentOperation.totals / body.value;
+      afterValue = beforeValue / body.value;
       break;
   }
 
   const operation = await prisma.operation.create({
     data: {
-      discussionId: parentOperation.discussionId,
-      parentId: parentOperation.id,
+      discussionId,
+      parentId: body.parentId || null,
+      title: `${body.operation} ${body.value}`,
       operationType: body.operation,
-      totals: operationValue,
-      createdBy: user.id,
       value: body.value,
+      beforeValue,
+      afterValue,
+      createdBy: user.id,
     },
     include: {
       user: {
