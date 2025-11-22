@@ -51,6 +51,8 @@ model Operation {
   user          User?          @relation(fields: [createdBy], references: [id])
   createdBy     Int
   discussion    Discussion     @relation(fields: [discussionId], references: [id])
+  parent        Operation?     @relation("OperationHistory", fields: [parentId], references: [id], onDelete: SetNull)
+  children      Operation[]    @relation("OperationHistory")
 }
 
 enum OPERATION_TYPE {

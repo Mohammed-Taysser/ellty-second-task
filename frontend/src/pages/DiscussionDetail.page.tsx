@@ -1,13 +1,13 @@
 import discussionApi from '@/api/discussion.api';
 import operationApi from '@/api/operation.api';
 import { SITEMAP } from '@/apps/config';
+import DiscussionTree from '@/components/DiscussionTree';
 import OperationForm from '@/components/OperationForm';
-import AuthContext from '@/context/auth.context';
 import useApiMessage from '@/hooks/useApiMessage';
-import { Button, Card, Col, Empty, Modal, Row, Skeleton, Space, Timeline, Typography } from 'antd';
-import dayjs from 'dayjs';
-import { ArrowLeft, Calculator, Clock, MessageSquare, Plus, User } from 'lucide-react';
-import { useContext, useEffect, useMemo, useState } from 'react';
+import { buildOperationTree } from '@/utils/tree.utils';
+import { Button, Card, Col, Empty, Modal, Row, Skeleton, Space, Typography } from 'antd';
+import { ArrowLeft, Calculator, MessageSquare, Plus } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
 const { Title, Text } = Typography;
@@ -17,7 +17,7 @@ const DiscussionDetail = () => {
 
   const { displayErrorMessages } = useApiMessage();
 
-  const authContext = useContext(AuthContext);
+
 
   const [showOperationForm, setShowOperationForm] = useState(false);
   const [selectedParentId, setSelectedParentId] = useState<number | null>();
@@ -93,31 +93,21 @@ const DiscussionDetail = () => {
     }
   };
 
-  const getOperationSymbol = (type: OperationType) => {
-    switch (type) {
-      case 'ADD':
-        return '+';
-      case 'SUBTRACT':
-        return '−';
-      case 'MULTIPLY':
-        return '×';
-      case 'DIVIDE':
-        return '÷';
-    }
+  const handleAddChildOperation = (parentId: number) => {
+    if (!fetchedDiscussion) return;
+
+    setSelectedParentId(parentId);
+    setShowOperationForm(true);
   };
 
-  const getOperationColor = (type: OperationType) => {
-    switch (type) {
-      case 'ADD':
-        return '#52c41a';
-      case 'SUBTRACT':
-        return '#f5222d';
-      case 'MULTIPLY':
-        return '#1890ff';
-      case 'DIVIDE':
-        return '#fa8c16';
-    }
-  };
+
+
+
+
+  const operationTree = useMemo(() => {
+    if (!fetchedDiscussion?.operations) return [];
+    return buildOperationTree(fetchedDiscussion.operations);
+  }, [fetchedDiscussion]);
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: '#f5f5f5' }}>
@@ -242,78 +232,9 @@ const DiscussionDetail = () => {
                     </Empty>
                   </div>
                 ) : (
-                  <Timeline
-                    items={fetchedDiscussion.operations.map((operation) => {
-                      const color = getOperationColor(operation.operationType);
-                      const symbol = getOperationSymbol(operation.operationType);
-
-                      return {
-                        key: operation.id,
-                        dot: (
-                          <div
-                            className="text-white text-2xl flex justify-center relative items-center w-8 h-8 rounded-full"
-                            style={{ backgroundColor: color }}
-                          >
-                            <span className="absolute top-[-3px]">{symbol}</span>
-                          </div>
-                        ),
-                        children: (
-                          <Card size="small">
-                            <Row justify="space-between" align="middle" gutter={[16, 16]}>
-                              <Col>
-                                <div>
-                                  <Space>
-                                    <span
-                                      className="text-lg font-semibold font-mono"
-                                      style={{
-                                        color,
-                                      }}
-                                    >
-                                      {symbol} {operation.value}
-                                    </span>
-
-                                    <span className="text-sm text-gray-500">=</span>
-
-                                    <span className="text-lg font-bold font-mono text-gray-900">
-                                      {operation.afterValue.toFixed(2)}
-                                    </span>
-                                  </Space>
-                                </div>
-
-                                <Space align="center" className="text-gray-500">
-                                  <Space align="center">
-                                    <User className="h-4 w-4" />
-                                    <span>
-                                      {operation.user.id === authContext.user?.id
-                                        ? 'You'
-                                        : operation.user.name}
-                                    </span>
-                                  </Space>
-
-                                  <Text type="secondary">•</Text>
-
-                                  <Space align="center">
-                                    <Clock className="h-4 w-4" />
-                                    <span>{dayjs(operation.updatedAt).fromNow()}</span>
-                                  </Space>
-                                </Space>
-                              </Col>
-
-                              <Col>
-                                <Button
-                                  type="dashed"
-                                  size="large"
-                                  icon={<Plus className="w-4 h-4" />}
-                                // onClick={() => onAddOperation(operation.id)}
-                                >
-                                  Add Operation
-                                </Button>
-                              </Col>
-                            </Row>
-                          </Card>
-                        ),
-                      };
-                    })}
+                  <DiscussionTree
+                    operations={operationTree}
+                    onAddChild={handleAddChildOperation}
                   />
                 )}
               </Card>
