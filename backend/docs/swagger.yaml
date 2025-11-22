@@ -614,6 +614,45 @@ paths:
                         type: object
                         example: { deleted: true }
 
+  /discussion/{discussionId}/end:
+    post:
+      tags: [Discussions]
+      summary: End a discussion
+      description: Mark a discussion as ended. Once ended, no new operations can be added to this discussion.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: discussionId
+          required: true
+          schema:
+            type: string
+          description: The ID of the discussion to end
+      responses:
+        200:
+          description: Discussion ended successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Discussion'
+        400:
+          description: Discussion already ended
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        404:
+          description: Discussion not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /operation:
     get:
       summary: Get all operations
@@ -625,12 +664,8 @@ paths:
         - in: query
           name: operationType
           schema:
-            {
-              type: enum,
-              enum: [END, ADD, SUBTRACT, MULTIPLY, DIVIDE],
-              minLength: 3,
-              maxLength: 100,
-            }
+            type: string
+            enum: [END, ADD, SUBTRACT, MULTIPLY, DIVIDE]
 
       responses:
         '200':
@@ -669,8 +704,9 @@ paths:
                 - value
               properties:
                 operationType:
-                  type: enum
-                  enum: [END, ADD, SUBTRACT, MULTIPLY, DIVIDE]
+                  type: string
+                  enum: [ADD, SUBTRACT, MULTIPLY, DIVIDE]
+                  example: ADD
                 value:
                   type: number
                 parentId:
@@ -881,6 +917,16 @@ components:
           type: string
           format: date-time
           example: 2022-01-01T00:00:00.000Z
+        isEnded:
+          type: boolean
+          description: Whether this discussion has been ended
+          example: false
+        endedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp when the discussion was ended
+          example: null
         user:
           $ref: '#/components/schemas/User'
         operations:
@@ -902,20 +948,31 @@ components:
         parentId:
           type: integer
           format: integer
+          nullable: true
           example: null
+        title:
+          type: string
+          description: Title or description of the operation
+          example: Add initial value
         operationType:
-          type: enunm
-          format: enum
-          example: START
-          enum: [START, END, ADD, SUBTRACT, MULTIPLY, DIVIDE]
-        totals:
-          type: integer
-          format: integer
-          example: 2
+          type: string
+          example: ADD
+          enum: [ADD, SUBTRACT, MULTIPLY, DIVIDE]
         value:
           type: integer
           format: integer
+          description: The value to apply in this operation
           example: 4
+        beforeValue:
+          type: integer
+          format: integer
+          description: The total value before this operation was applied
+          example: 10
+        afterValue:
+          type: integer
+          format: integer
+          description: The total value after this operation was applied
+          example: 14
         createdAt:
           type: string
           format: date-time
