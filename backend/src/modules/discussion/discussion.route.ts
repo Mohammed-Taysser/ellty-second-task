@@ -38,6 +38,14 @@ discussionRoutes.patch(
   validateRequest(validator.updateDiscussionSchema),
   controller.updateDiscussion
 );
+
+discussionRoutes.post(
+  '/:discussionId/end',
+  authenticateMiddleware,
+  validateRequest(validator.getDiscussionByIdSchema),
+  controller.endDiscussion
+);
+
 discussionRoutes.delete('/:discussionId', authenticateMiddleware, controller.deleteDiscussion);
 
 export default discussionRoutes;

@@ -320,6 +320,64 @@ async function deleteDiscussion(request: Request, response: Response) {
   });
 }
 
+async function endDiscussion(request: Request, response: Response) {
+  const authenticatedRequest = request as unknown as AuthenticatedRequest<
+    GetDiscussionByIdParams,
+    unknown,
+    unknown,
+    unknown
+  >;
+
+  const discussionId = authenticatedRequest.params.discussionId;
+
+  const discussion = await prisma.discussion.findUnique({
+    where: { id: discussionId },
+  });
+
+  if (!discussion) {
+    throw new NotFoundError('Discussion not found');
+  }
+
+  if (discussion.isEnded) {
+    return response.status(400).json({ error: 'Discussion is already ended' });
+  }
+
+  const updatedDiscussion = await prisma.discussion.update({
+    where: { id: discussionId },
+    data: {
+      isEnded: true,
+      endedAt: new Date(),
+    },
+    include: {
+      user: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
+      operations: {
+        orderBy: { id: 'asc' },
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  sendSuccessResponse({
+    response,
+    message: 'Discussion ended',
+    data: updatedDiscussion,
+  });
+}
+
 const discussionController = {
   createDiscussion,
   deleteDiscussion,
@@ -327,6 +385,7 @@ const discussionController = {
   getDiscussions,
   getDiscussionsList,
   updateDiscussion,
+  endDiscussion,
 };
 
 export default discussionController;

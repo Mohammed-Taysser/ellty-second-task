@@ -5,7 +5,7 @@ import DiscussionTree from '@/components/DiscussionTree';
 import OperationForm from '@/components/OperationForm';
 import useApiMessage from '@/hooks/useApiMessage';
 import { buildOperationTree } from '@/utils/tree.utils';
-import { Button, Card, Col, Empty, Modal, Row, Skeleton, Space, Typography } from 'antd';
+import { Button, Card, Col, Empty, Modal, Row, Skeleton, Space, Tag, Typography } from 'antd';
 import { ArrowLeft, Calculator, MessageSquare, Plus } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
@@ -33,7 +33,7 @@ const DiscussionDetail = () => {
 
   const fetchDiscussionByID = async (discussionId: number) => {
     setIsLoading(true);
-
+    
     try {
       const response = await discussionApi.getById(discussionId);
       setFetchedDiscussion(response.data.data);
@@ -73,6 +73,18 @@ const DiscussionDetail = () => {
 
     setSelectedParentId(null); // null indicates root operation
     setShowOperationForm(true);
+  };
+
+  // End discussion handler
+  const handleEndDiscussion = async () => {
+    if (!fetchedDiscussion) return;
+    try {
+      await discussionApi.endDiscussion(fetchedDiscussion.id);
+      // Refresh discussion data
+      fetchDiscussionByID(fetchedDiscussion.id);
+    } catch (error) {
+      displayErrorMessages(error);
+    }
   };
 
   const handleOperationSubmit = async (type: OperationType, operand: number) => {
@@ -115,7 +127,6 @@ const DiscussionDetail = () => {
         open={showOperationForm}
         onCancel={() => setShowOperationForm(false)}
         footer={null}
-        destroyOnClose
       >
         <OperationForm
           currentValue={
@@ -199,9 +210,18 @@ const DiscussionDetail = () => {
                     size="large"
                     onClick={handleAddRootOperation}
                     icon={<Plus className="h-5 w-5" />}
+                    disabled={!!fetchedDiscussion?.isEnded}
                   >
                     Add Root Operation
                   </Button>
+
+                  {fetchedDiscussion?.isEnded ? (
+                    <Tag color="red">Ended</Tag>
+                  ) : (
+                    <Button type="primary" danger onClick={handleEndDiscussion}>
+                      End Discussion
+                    </Button>
+                  )}
                 </Col>
               </Row>
 
@@ -235,6 +255,7 @@ const DiscussionDetail = () => {
                   <DiscussionTree
                     operations={operationTree}
                     onAddChild={handleAddChildOperation}
+                    isEnded={fetchedDiscussion?.isEnded}
                   />
                 )}
               </Card>

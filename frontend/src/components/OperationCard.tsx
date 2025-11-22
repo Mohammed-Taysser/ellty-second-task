@@ -11,9 +11,10 @@ const { Text } = Typography;
 interface OperationCardProps {
   operation: TreeOperation;
   onAddChild: (id: number) => void;
+  disabledAdd?: boolean;
 }
 
-const OperationCard = ({ operation, onAddChild }: OperationCardProps) => {
+const OperationCard = ({ operation, onAddChild, disabledAdd }: OperationCardProps) => {
   const authContext = useContext(AuthContext);
   const symbol = getOperationSymbol(operation.operationType);
   const color = getOperationColor(operation.operationType);
@@ -64,6 +65,7 @@ const OperationCard = ({ operation, onAddChild }: OperationCardProps) => {
             size="large"
             icon={<Plus className="w-4 h-4" />}
             onClick={() => onAddChild(operation.id)}
+            disabled={disabledAdd}
           >
             Add Operation
           </Button>

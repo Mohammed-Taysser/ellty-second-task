@@ -172,6 +172,16 @@ async function createOperation(request: Request, response: Response) {
     discussionId = parentOperation.discussionId;
   }
 
+  // Check if discussion is ended
+  const discussion = await prisma.discussion.findUnique({
+    where: { id: discussionId },
+    select: { isEnded: true },
+  });
+
+  if (discussion?.isEnded) {
+    return response.status(400).json({ error: 'Cannot add operation to an ended discussion' });
+  }
+
   // Validate division by zero
   if (body.operation === 'DIVIDE' && body.value === 0) {
     return response.status(400).json({ error: 'Cannot divide by zero' });
