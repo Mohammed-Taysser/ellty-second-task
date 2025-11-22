@@ -1,8 +1,8 @@
 import { z } from 'zod';
 
 const basePaginationSchema = z.object({
-  page: z.coerce.number().positive().min(1).default(1),
-  limit: z.coerce.number().min(1).max(500).default(10),
+  page: z.coerce.number().positive().positive().int().default(1),
+  limit: z.coerce.number().positive().int().max(500).default(10),
 });
 
 const dateRangeSchema = z.object({

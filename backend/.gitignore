@@ -6,4 +6,4 @@ coverage
 temp
 uploads
 
-/generated/prisma
+prisma/generated

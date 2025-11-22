@@ -1,41 +1,58 @@
-import { configDotenv } from 'dotenv';
 import { SignOptions } from 'jsonwebtoken';
 import { z } from 'zod';
 
-configDotenv();
+import 'dotenv/config';
+
+/* ----------------------------- Shared Schemas ----------------------------- */
+
+const durationSchema = z
+  .string()
+  .trim()
+  .regex(/^\d+[smhd]$/, {
+    message: 'Duration must be like "30s", "15m", "1h", "7d"',
+  }) as z.ZodType<SignOptions['expiresIn']>;
+
+const postgresUrlSchema = z
+  .string()
+  .trim()
+  .refine((val) => val.startsWith('postgres://') || val.startsWith('postgresql://'), {
+    message: 'DATABASE_URL must start with "postgres://" or "postgresql://"',
+  });
+
+/* ------------------------------- Env Schema ------------------------------- */
 
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
-  PORT: z.string().trim().transform(Number),
+  PORT: z.coerce.number().positive().int(),
 
   ALLOWED_ORIGINS: z
     .string()
+    .trim()
     .default('')
-    .transform((val) => {
-      const origins = val
-        .split(',')
-        .map((origin) => origin.trim())
-        .filter((origin) => origin !== '');
-      return origins;
-    }),
+    .transform((v) =>
+      z.array(z.url()).parse(
+        v
+          .split(',')
+          .map((x) => x.trim())
+          .filter(Boolean)
+      )
+    ),
 
+  // Database Configuration
+  DATABASE_URL: postgresUrlSchema,
+
+  // Seed Configuration
+  SEED_USER_PASSWORD: z.string().trim(),
+
+  // JWT Configuration
   JWT_SECRET: z.string().trim().min(10),
-  JWT_ACCESS_EXPIRES_IN: z
-    .string()
-    .trim()
-    .regex(/^\d+[smhd]$/, {
-      message: 'JWT_EXPIRES_IN must be a duration like "7d", "15m", "1h", or "30s"',
-    }) as z.ZodType<SignOptions['expiresIn']>,
-  JWT_REFRESH_EXPIRES_IN: z
-    .string()
-    .trim()
-    .regex(/^\d+[smhd]$/, {
-      message: 'JWT_EXPIRES_IN must be a duration like "7d", "15m", "1h", or "30s"',
-    }) as z.ZodType<SignOptions['expiresIn']>,
+  JWT_ACCESS_EXPIRES_IN: durationSchema,
+  JWT_REFRESH_EXPIRES_IN: durationSchema,
 });
 
+/* ----------------------------- Validate Config ---------------------------- */
+
 // Validate and catch errors with friendly messages
-// let CONFIG: z.infer<typeof envSchema>;
 const envValidation = envSchema.safeParse(process.env);
 
 if (!envValidation.success) {
@@ -53,7 +70,7 @@ if (!envValidation.success) {
 }
 
 if (envValidation.data.ALLOWED_ORIGINS.length === 0) {
-  console.warn('⚠️  ALLOWED_ORIGINS is empty, CORS is disabled');
+  console.warn('\n⚠️  ALLOWED_ORIGINS is empty, CORS is disabled');
 }
 
 const CONFIG = envValidation.data;

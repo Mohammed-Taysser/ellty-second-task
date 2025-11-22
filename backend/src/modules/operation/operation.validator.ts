@@ -1,4 +1,4 @@
-import { OPERATION_TYPE } from '@prisma/client';
+import { OPERATION_TYPE } from 'prisma/generated';
 import { z } from 'zod';
 
 import { zodParseEnumList } from '@/utils/zod-utils';
@@ -12,15 +12,15 @@ const getOperationsListSchema = {
 
 const getOperationByIdSchema = {
   params: z.object({
-    operationId: z.coerce.number().min(1).max(100),
+    operationId: z.coerce.number().positive().int(),
   }),
 };
 
 const createOperationSchema = {
   body: z.object({
-    operation: z.enum(Object.values(OPERATION_TYPE)),
+    operation: z.enum(OPERATION_TYPE),
     value: z.coerce.number(),
-    parentId: z.coerce.number(),
+    parentId: z.coerce.number().positive().int(),
   }),
 };
 

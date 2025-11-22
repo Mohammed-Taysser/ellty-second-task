@@ -5,13 +5,13 @@ import { basePaginationSchema } from '@/validations/base.validation';
 const getDiscussionsListSchema = {
   query: basePaginationSchema.extend({
     title: z.string().trim().min(3).max(100).optional(),
-    userId: z.coerce.number().min(1).max(100).optional(),
+    userId: z.coerce.number().positive().int().optional(),
   }),
 };
 
 const getDiscussionByIdSchema = {
   params: z.object({
-    discussionId: z.coerce.number().min(1).max(100),
+    discussionId: z.coerce.number().positive().int(),
   }),
 };
 

@@ -1,12 +1,14 @@
 import { defineConfig } from 'prisma/config';
 
+import CONFIG from './src/apps/config';
+
 export default defineConfig({
   schema: 'prisma/schema.prisma',
   migrations: {
     path: 'prisma/migrations',
+    seed: 'ts-node --require tsconfig-paths/register prisma/seed.ts',
   },
-  engine: 'classic',
   datasource: {
-    url: 'file:./dev.db', // path to your SQLite file
+    url: CONFIG.DATABASE_URL,
   },
 });

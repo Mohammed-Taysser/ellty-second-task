@@ -1,5 +1,5 @@
-import { Prisma } from '@prisma/client';
 import { Request, Response } from 'express';
+import { Prisma } from 'prisma/generated';
 
 import {
   CreateUserInput,

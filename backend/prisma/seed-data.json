@@ -1,0 +1,239 @@
+{
+  "users": [
+    {
+      "name": "Alice Johnson",
+      "email": "alice@demo.com"
+    },
+    {
+      "name": "Bob Smith",
+      "email": "bob@demo.com"
+    },
+    {
+      "name": "Charlie Brown",
+      "email": "charlie@demo.com"
+    },
+    {
+      "name": "Diana Prince",
+      "email": "diana@demo.com"
+    },
+    {
+      "name": "Eve Adams",
+      "email": "eve@demo.com"
+    }
+  ],
+  "discussions": [
+    {
+      "title": "Budget Calculation 2024",
+      "startingValue": 10000,
+      "createdByIndex": 0
+    },
+    {
+      "title": "Project Cost Estimation",
+      "startingValue": 5000,
+      "createdByIndex": 1
+    },
+    {
+      "title": "Revenue Forecast",
+      "startingValue": 50000,
+      "createdByIndex": 2
+    },
+    {
+      "title": "Expense Tracking",
+      "startingValue": 1000,
+      "createdByIndex": 3
+    },
+    {
+      "title": "Investment Returns",
+      "startingValue": 25000,
+      "createdByIndex": 4
+    },
+    {
+      "title": "Simple Math Example",
+      "startingValue": 100,
+      "createdByIndex": 0
+    },
+    {
+      "title": "Complex Calculation Tree",
+      "startingValue": 1000,
+      "createdByIndex": 1
+    }
+  ],
+  "operations": [
+    {
+      "discussionIndex": 0,
+      "parentOperationIndex": null,
+      "operationType": "ADD",
+      "value": 5000,
+      "totals": 15000,
+      "createdByIndex": 0
+    },
+    {
+      "discussionIndex": 0,
+      "parentOperationIndex": 0,
+      "operationType": "SUBTRACT",
+      "value": 2000,
+      "totals": 13000,
+      "createdByIndex": 1
+    },
+    {
+      "discussionIndex": 0,
+      "parentOperationIndex": 1,
+      "operationType": "MULTIPLY",
+      "value": 1.1,
+      "totals": 14300,
+      "createdByIndex": 0
+    },
+    {
+      "discussionIndex": 1,
+      "parentOperationIndex": null,
+      "operationType": "MULTIPLY",
+      "value": 2,
+      "totals": 10000,
+      "createdByIndex": 1
+    },
+    {
+      "discussionIndex": 1,
+      "parentOperationIndex": 3,
+      "operationType": "ADD",
+      "value": 3000,
+      "totals": 13000,
+      "createdByIndex": 2
+    },
+    {
+      "discussionIndex": 1,
+      "parentOperationIndex": 4,
+      "operationType": "DIVIDE",
+      "value": 2,
+      "totals": 6500,
+      "createdByIndex": 1
+    },
+    {
+      "discussionIndex": 2,
+      "parentOperationIndex": null,
+      "operationType": "ADD",
+      "value": 10000,
+      "totals": 60000,
+      "createdByIndex": 2
+    },
+    {
+      "discussionIndex": 2,
+      "parentOperationIndex": 6,
+      "operationType": "MULTIPLY",
+      "value": 1.2,
+      "totals": 72000,
+      "createdByIndex": 3
+    },
+    {
+      "discussionIndex": 2,
+      "parentOperationIndex": 7,
+      "operationType": "SUBTRACT",
+      "value": 5000,
+      "totals": 67000,
+      "createdByIndex": 2
+    },
+    {
+      "discussionIndex": 2,
+      "parentOperationIndex": 6,
+      "operationType": "DIVIDE",
+      "value": 3,
+      "totals": 20000,
+      "createdByIndex": 4
+    },
+    {
+      "discussionIndex": 2,
+      "parentOperationIndex": 9,
+      "operationType": "ADD",
+      "value": 8000,
+      "totals": 28000,
+      "createdByIndex": 2
+    },
+    {
+      "discussionIndex": 3,
+      "parentOperationIndex": null,
+      "operationType": "SUBTRACT",
+      "value": 250,
+      "totals": 750,
+      "createdByIndex": 3
+    },
+    {
+      "discussionIndex": 3,
+      "parentOperationIndex": 11,
+      "operationType": "SUBTRACT",
+      "value": 150,
+      "totals": 600,
+      "createdByIndex": 3
+    },
+    {
+      "discussionIndex": 4,
+      "parentOperationIndex": null,
+      "operationType": "MULTIPLY",
+      "value": 1.15,
+      "totals": 28750,
+      "createdByIndex": 4
+    },
+    {
+      "discussionIndex": 4,
+      "parentOperationIndex": 13,
+      "operationType": "ADD",
+      "value": 5000,
+      "totals": 33750,
+      "createdByIndex": 0
+    },
+    {
+      "discussionIndex": 5,
+      "parentOperationIndex": null,
+      "operationType": "ADD",
+      "value": 50,
+      "totals": 150,
+      "createdByIndex": 0
+    },
+    {
+      "discussionIndex": 5,
+      "parentOperationIndex": 15,
+      "operationType": "DIVIDE",
+      "value": 3,
+      "totals": 50,
+      "createdByIndex": 1
+    },
+    {
+      "discussionIndex": 6,
+      "parentOperationIndex": null,
+      "operationType": "ADD",
+      "value": 500,
+      "totals": 1500,
+      "createdByIndex": 1
+    },
+    {
+      "discussionIndex": 6,
+      "parentOperationIndex": 17,
+      "operationType": "MULTIPLY",
+      "value": 2,
+      "totals": 3000,
+      "createdByIndex": 2
+    },
+    {
+      "discussionIndex": 6,
+      "parentOperationIndex": 18,
+      "operationType": "SUBTRACT",
+      "value": 500,
+      "totals": 2500,
+      "createdByIndex": 3
+    },
+    {
+      "discussionIndex": 6,
+      "parentOperationIndex": 19,
+      "operationType": "DIVIDE",
+      "value": 5,
+      "totals": 500,
+      "createdByIndex": 4
+    },
+    {
+      "discussionIndex": 6,
+      "parentOperationIndex": 20,
+      "operationType": "MULTIPLY",
+      "value": 3,
+      "totals": 1500,
+      "createdByIndex": 0
+    }
+  ]
+}
