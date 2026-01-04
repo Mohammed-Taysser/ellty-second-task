@@ -224,6 +224,27 @@ describe('PATCH /api/operation/:id', () => {
 
       expect(response.status).toBe(401);
     });
+
+    it('should forbid updating an operation created by another user', async () => {
+      const owner = await createTestUser();
+      const otherUser = await createTestUser();
+      const authToken = generateAuthToken(otherUser.id, otherUser.email).accessToken;
+      const discussion = await createTestDiscussion({ createdBy: owner.id });
+      const operation = await createTestOperation({
+        discussionId: discussion.id,
+        createdBy: owner.id,
+      });
+
+      const response = await authenticatedRequest(
+        'patch',
+        `${ENDPOINTS.operation}/${operation.id}`,
+        authToken
+      ).send({
+        value: 99,
+      });
+
+      expectError(response, 403, 'You do not have permission to update this operation');
+    });
   });
 
   describe('tree recalculation', () => {
