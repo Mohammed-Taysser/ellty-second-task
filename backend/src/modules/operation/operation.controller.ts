@@ -13,7 +13,7 @@ import prisma from '@/apps/prisma';
 import cacheService from '@/services/cache.service';
 import { AuthenticatedRequest } from '@/types/import';
 import { calculateOperationDepth, validateTreeDepth } from '@/utils/depth.utils';
-import { BadRequestError, NotFoundError } from '@/utils/errors.utils';
+import { BadRequestError, ForbiddenError, NotFoundError } from '@/utils/errors.utils';
 import { userSelectBasic } from '@/utils/prisma-selects.utils';
 import { sendPaginatedResponse, sendSuccessResponse } from '@/utils/response.utils';
 
@@ -247,18 +247,29 @@ async function createOperation(request: Request, response: Response) {
  * Uses transaction to ensure atomic updates
  */
 const updateOperation = async (request: Request, response: Response): Promise<void> => {
-  const { operationId } = request.params as unknown as { operationId: string };
-  const body = request.body as UpdateOperationInput;
+  const authenticatedRequest = request as unknown as AuthenticatedRequest<
+    GetOperationByIdParams,
+    unknown,
+    UpdateOperationInput,
+    unknown
+  >;
+
+  const { params, body, user } = authenticatedRequest;
+  const userId = user.id;
 
   const result = await prisma.$transaction(async (tx) => {
     // 1. Fetch current operation with discussion
     const operation = await tx.operation.findUnique({
-      where: { id: Number(operationId) },
+      where: { id: params.operationId },
       include: { discussion: true },
     });
 
     if (!operation) {
       throw new NotFoundError('Operation not found');
+    }
+
+    if (operation.createdBy !== userId) {
+      throw new ForbiddenError('You do not have permission to update this operation');
     }
 
     // 2. Check if discussion is ended
@@ -298,7 +309,7 @@ const updateOperation = async (request: Request, response: Response): Promise<vo
 
     // 7. Update the operation itself
     const updatedOperation = await tx.operation.update({
-      where: { id: Number(operationId) },
+      where: { id: params.operationId },
       data: {
         title: body.title,
         operationType: body.operationType,
@@ -314,7 +325,7 @@ const updateOperation = async (request: Request, response: Response): Promise<vo
     });
 
     // 8. Recalculate all descendants
-    const affectedCount = await operationService.recalculateOperationTree(Number(operationId), tx);
+    const affectedCount = await operationService.recalculateOperationTree(params.operationId, tx);
 
     // 9. Invalidate root nodes cache
     await cacheService.invalidateRootNodesCache(operation.discussionId);
@@ -338,7 +349,7 @@ async function deleteOperation(request: Request, response: Response) {
     unknown
   >;
 
-  const { params } = authenticatedRequest;
+  const { params, user } = authenticatedRequest;
   const operationId = Number(params.operationId);
 
   const operation = await prisma.operation.findUnique({
@@ -348,6 +359,10 @@ async function deleteOperation(request: Request, response: Response) {
 
   if (!operation) {
     throw new NotFoundError('Operation not found');
+  }
+
+  if (operation.createdBy !== user.id) {
+    throw new ForbiddenError('You do not have permission to delete this operation');
   }
 
   if (operation.discussion.isEnded) {

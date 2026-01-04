@@ -16,7 +16,12 @@ userRoutes.patch(
 );
 userRoutes.get('/me', authenticateMiddleware, controller.getProfile);
 
-userRoutes.get('/all', validateRequest(validator.getUsersListSchema), controller.getUsersList);
+userRoutes.get(
+  '/all',
+  authenticateMiddleware,
+  validateRequest(validator.getUsersListSchema),
+  controller.getUsersList
+);
 userRoutes.get('/', validateRequest(validator.getUsersListSchema), controller.getUsers);
 
 userRoutes.get('/:userId', validateRequest(validator.getUserByIdSchema), controller.getUserById);
