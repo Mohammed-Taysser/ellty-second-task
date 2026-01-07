@@ -21,6 +21,89 @@ interface SeedData {
   }>;
 }
 
+function getSeedMultiplier() {
+  const countFlagIndex = process.argv.findIndex((arg) => arg === '--count');
+  const rawValue =
+    (countFlagIndex > -1 ? process.argv[countFlagIndex + 1] : undefined) ??
+    process.argv.find((arg) => arg.startsWith('--count='))?.split('=')[1] ??
+    process.env.SEED_COUNT;
+
+  if (!rawValue) {
+    return 1;
+  }
+
+  const parsed = Number(rawValue);
+  if (!Number.isFinite(parsed) || parsed < 1) {
+    return 1;
+  }
+
+  return Math.floor(parsed);
+}
+
+function withEmailSuffix(email: string, suffix: string) {
+  const atIndex = email.lastIndexOf('@');
+  if (atIndex <= 0) {
+    return `${email}+seed${suffix}`;
+  }
+
+  const local = email.slice(0, atIndex);
+  const domain = email.slice(atIndex + 1);
+  return `${local}+seed${suffix}@${domain}`;
+}
+
+function expandSeedData(seedData: SeedData, multiplier: number): SeedData {
+  if (multiplier <= 1) {
+    return seedData;
+  }
+
+  const users: SeedData['users'] = [];
+  const discussions: SeedData['discussions'] = [];
+  const operations: SeedData['operations'] = [];
+
+  const userBaseCount = seedData.users.length;
+  const discussionBaseCount = seedData.discussions.length;
+  const operationBaseCount = seedData.operations.length;
+
+  for (let index = 0; index < multiplier; index += 1) {
+    const isBase = index === 0;
+    const userOffset = index * userBaseCount;
+    const discussionOffset = index * discussionBaseCount;
+    const operationOffset = index * operationBaseCount;
+    const suffix = String(index + 1);
+
+    seedData.users.forEach((user) => {
+      users.push({
+        name: isBase ? user.name : `${user.name} ${suffix}`,
+        email: isBase ? user.email : withEmailSuffix(user.email, suffix),
+      });
+    });
+
+    seedData.discussions.forEach((discussion) => {
+      discussions.push({
+        title: isBase || !discussion.title ? discussion.title : `${discussion.title} #${suffix}`,
+        startingValue: discussion.startingValue,
+        createdByIndex: discussion.createdByIndex + userOffset,
+      });
+    });
+
+    seedData.operations.forEach((operation) => {
+      operations.push({
+        discussionIndex: operation.discussionIndex + discussionOffset,
+        parentOperationIndex:
+          operation.parentOperationIndex === null
+            ? null
+            : operation.parentOperationIndex + operationOffset,
+        operationType: operation.operationType,
+        value: operation.value,
+        totals: operation.totals,
+        createdByIndex: operation.createdByIndex + userOffset,
+      });
+    });
+  }
+
+  return { users, discussions, operations };
+}
+
 /**
  * Seed script to populate database with demo data
  * - Reads data from seed-data.json
@@ -33,8 +116,16 @@ async function main() {
   // Load seed data from JSON
   const seedDataPath = join(__dirname, 'seed-data.json');
   const seedData: SeedData = JSON.parse(readFileSync(seedDataPath, 'utf-8'));
+  const seedMultiplier = getSeedMultiplier();
+  const expandedSeedData = expandSeedData(seedData, seedMultiplier);
 
   console.log('✅ Loaded seed data from JSON\n');
+  if (seedMultiplier > 1) {
+    console.log(`📈 Seed multiplier set to ${seedMultiplier}`);
+    console.log(
+      `   - Users: ${expandedSeedData.users.length}\n   - Discussions: ${expandedSeedData.discussions.length}\n   - Operations: ${expandedSeedData.operations.length}\n`
+    );
+  }
 
   // Hash the seed password from config
   const hashedPassword = hashSync(CONFIG.SEED_USER_PASSWORD, 10);
@@ -48,39 +139,45 @@ async function main() {
 
   // Create demo users
   console.log('👥 Creating demo users...');
-  const users = await Promise.all(
-    seedData.users.map((userData) =>
-      prisma.user.create({
-        data: {
-          name: userData.name,
-          email: userData.email,
-          password: hashedPassword,
-        },
-      })
-    )
-  );
+  await prisma.user.createMany({
+    data: expandedSeedData.users.map((userData) => ({
+      name: userData.name,
+      email: userData.email,
+      password: hashedPassword,
+    })),
+  });
+
+  const users = await prisma.user.findMany({
+    orderBy: { id: 'asc' },
+    take: expandedSeedData.users.length,
+  });
+
   console.log('✅ Created', users.length, 'users\n');
 
   // Create discussions
   console.log('💬 Creating discussions...');
-  const discussions = await Promise.all(
-    seedData.discussions.map((discussionData) =>
-      prisma.discussion.create({
-        data: {
-          title: discussionData.title,
-          startingValue: discussionData.startingValue,
-          createdBy: users[discussionData.createdByIndex].id,
-        },
-      })
-    )
-  );
+  const discussionSeed = expandedSeedData.discussions.map((discussionData) => ({
+    title: discussionData.title,
+    startingValue: discussionData.startingValue,
+    createdBy: users[discussionData.createdByIndex].id,
+  }));
+
+  await prisma.discussion.createMany({
+    data: discussionSeed,
+  });
+
+  const discussions = await prisma.discussion.findMany({
+    orderBy: { id: 'asc' },
+    take: discussionSeed.length,
+  });
+
   console.log('✅ Created', discussions.length, 'discussions\n');
 
   // Create operations
   console.log('🔢 Creating operations...');
   const operations: Operation[] = [];
 
-  for (const operationData of seedData.operations) {
+  for (const operationData of expandedSeedData.operations) {
     // Calculate beforeValue from parent or starting value
     let beforeValue: number;
     if (operationData.parentOperationIndex === null) {
@@ -95,7 +192,7 @@ async function main() {
     // Calculate afterValue using shared service logic
     const afterValue = calculateOperation(
       beforeValue,
-      operationData.operationType as OPERATION_TYPE,
+      operationData.operationType,
       operationData.value
     );
 
@@ -125,12 +222,16 @@ async function main() {
   console.log('   - Discussions:', discussions.length);
   console.log('   - Operations:', operations.length);
   console.log(`\n🔐 Demo user credentials:`);
-  console.log(`   Email: alice@demo.com (or any demo user)`);
+  console.log(`   Email: ${users[0].email} (or any demo user)`);
   console.log('   Password:', CONFIG.SEED_USER_PASSWORD);
 }
 
-main().catch((error) => {
-  console.error('❌ Seed failed:');
-  console.error(error);
-  process.exit(1);
-});
+main()
+  .catch((error) => {
+    console.error('❌ Seed failed:');
+    console.error(error);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });
