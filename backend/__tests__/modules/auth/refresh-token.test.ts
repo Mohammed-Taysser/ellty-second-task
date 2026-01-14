@@ -6,6 +6,9 @@ import {
   request,
 } from '@test/helpers/supertest-utils';
 import { createTestUser, generateAuthToken } from '@test/helpers/test-utils';
+import jwt from 'jsonwebtoken';
+
+import CONFIG from '@/apps/config';
 
 describe('POST /api/auth/refresh-token', () => {
   describe('successful refresh', () => {
@@ -36,6 +39,19 @@ describe('POST /api/auth/refresh-token', () => {
     it('should reject invalid refresh token', async () => {
       const response = await request().post(ENDPOINTS.auth.refreshToken).send({
         refreshToken: 'invalid-token',
+      });
+
+      expectError(response, 401, 'Invalid Or Expired Refresh Token');
+    });
+
+    it('should reject expired refresh token', async () => {
+      const user = await createTestUser();
+      const expiredToken = jwt.sign({ id: user.id, email: user.email }, CONFIG.JWT_SECRET, {
+        expiresIn: -1,
+      });
+
+      const response = await request().post(ENDPOINTS.auth.refreshToken).send({
+        refreshToken: expiredToken,
       });
 
       expectError(response, 401, 'Invalid Or Expired Refresh Token');

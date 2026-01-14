@@ -11,7 +11,7 @@ import {
 import prisma from '@/apps/prisma';
 import cacheService from '@/services/cache.service';
 import { AuthenticatedRequest } from '@/types/import';
-import { BadRequestError, NotFoundError } from '@/utils/errors.utils';
+import { BadRequestError, ForbiddenError, NotFoundError } from '@/utils/errors.utils';
 import { userSelectBasic } from '@/utils/prisma-selects.utils';
 import { sendPaginatedResponse, sendSuccessResponse } from '@/utils/response.utils';
 
@@ -224,7 +224,7 @@ async function updateDiscussion(request: Request, response: Response) {
     unknown
   >;
 
-  const { body, params } = authenticatedRequest;
+  const { body, params, user } = authenticatedRequest;
 
   const discussion = await prisma.discussion.findUnique({
     where: { id: params.discussionId },
@@ -232,6 +232,10 @@ async function updateDiscussion(request: Request, response: Response) {
 
   if (!discussion) {
     throw new NotFoundError('Discussion not found');
+  }
+
+  if (discussion.createdBy !== user.id) {
+    throw new ForbiddenError('You do not have permission to update this discussion');
   }
 
   const updatedDiscussion = await prisma.discussion.update({
@@ -272,7 +276,8 @@ async function deleteDiscussion(request: Request, response: Response) {
     unknown
   >;
 
-  const discussionId = authenticatedRequest.params.discussionId;
+  const { params, user } = authenticatedRequest;
+  const discussionId = params.discussionId;
 
   const discussion = await prisma.discussion.findUnique({
     where: { id: discussionId },
@@ -280,6 +285,10 @@ async function deleteDiscussion(request: Request, response: Response) {
 
   if (!discussion) {
     throw new NotFoundError('Discussion not found');
+  }
+
+  if (discussion.createdBy !== user.id) {
+    throw new ForbiddenError('You do not have permission to delete this discussion');
   }
 
   const deletedDiscussion = await prisma.discussion.delete({
@@ -317,7 +326,8 @@ async function endDiscussion(request: Request, response: Response) {
     unknown
   >;
 
-  const discussionId = authenticatedRequest.params.discussionId;
+  const { params, user } = authenticatedRequest;
+  const discussionId = params.discussionId;
 
   const discussion = await prisma.discussion.findUnique({
     where: { id: discussionId },
@@ -325,6 +335,10 @@ async function endDiscussion(request: Request, response: Response) {
 
   if (!discussion) {
     throw new NotFoundError('Discussion not found');
+  }
+
+  if (discussion.createdBy !== user.id) {
+    throw new ForbiddenError('You do not have permission to end this discussion');
   }
 
   if (discussion.isEnded) {

@@ -113,29 +113,46 @@ export async function recalculateOperationTree(
   // 2. Sort by depth (parents before children)
   const sorted = topologicalSort(descendants);
 
+  const parentIds = new Set<number>();
+  for (const op of sorted) {
+    if (op.parentId) {
+      parentIds.add(op.parentId);
+    }
+  }
+
+  const parents = parentIds.size
+    ? await tx.operation.findMany({
+        where: { id: { in: Array.from(parentIds) } },
+        select: { id: true, afterValue: true, depth: true },
+      })
+    : [];
+
+  const parentValues = new Map<number, { afterValue: number; depth: number }>();
+  for (const parent of parents) {
+    parentValues.set(parent.id, { afterValue: parent.afterValue, depth: parent.depth });
+  }
+
   // 3. Update each operation
   for (const op of sorted) {
-    const parent = await tx.operation.findUnique({
-      where: { id: op.parentId! },
-      select: { afterValue: true, depth: true },
-    });
+    const parent = parentValues.get(op.parentId!);
 
     if (!parent) {
       throw new NotFoundError(`Parent operation ${op.parentId} not found`);
     }
 
-    const parentAfterValue = parent.afterValue;
-    const newAfterValue = calculateOperation(parentAfterValue, op.operationType, op.value);
+    const newAfterValue = calculateOperation(parent.afterValue, op.operationType, op.value);
     const newDepth = parent.depth + 1;
 
     await tx.operation.update({
       where: { id: op.id },
       data: {
-        beforeValue: parentAfterValue,
+        beforeValue: parent.afterValue,
         afterValue: newAfterValue,
         depth: newDepth,
       },
     });
+
+    parentValues.set(op.id, { afterValue: newAfterValue, depth: newDepth });
   }
 
   return descendants.length;

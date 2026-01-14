@@ -13,7 +13,7 @@ import prisma from '@/apps/prisma';
 import tokenService from '@/services/token.service';
 import { AuthenticatedRequest } from '@/types/import';
 import { buildDateRangeFilter } from '@/utils/dayjs.utils';
-import { ConflictError, NotFoundError } from '@/utils/errors.utils';
+import { ConflictError, ForbiddenError, NotFoundError } from '@/utils/errors.utils';
 import { userSelectFull } from '@/utils/prisma-selects.utils';
 import { sendPaginatedResponse, sendSuccessResponse } from '@/utils/response.utils';
 
@@ -188,7 +188,7 @@ async function updateUser(request: Request, response: Response) {
     unknown
   >;
 
-  const { body, params } = authenticatedRequest;
+  const { body, params, user: authUser } = authenticatedRequest;
 
   const user = await prisma.user.findUnique({
     where: { id: params.userId },
@@ -196,6 +196,10 @@ async function updateUser(request: Request, response: Response) {
 
   if (!user) {
     throw new NotFoundError('User not found');
+  }
+
+  if (params.userId !== authUser.id) {
+    throw new ForbiddenError('You do not have permission to update this user');
   }
 
   const updatedUser = await prisma.user.update({
@@ -254,18 +258,22 @@ async function deleteUser(request: Request, response: Response) {
     unknown
   >;
 
-  const userId = authenticatedRequest.params.userId;
+  const { params, user } = authenticatedRequest;
 
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
+  const userRecord = await prisma.user.findUnique({
+    where: { id: params.userId },
   });
 
-  if (!user) {
+  if (!userRecord) {
     throw new NotFoundError('User not found');
   }
 
+  if (params.userId !== user.id) {
+    throw new ForbiddenError('You do not have permission to delete this user');
+  }
+
   const deletedUser = await prisma.user.delete({
-    where: { id: userId },
+    where: { id: params.userId },
     select: userSelectFull,
   });
 

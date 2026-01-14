@@ -8,17 +8,12 @@ import {
 import { createTestUser, generateAuthToken } from '@test/helpers/test-utils';
 
 describe('PATCH /api/users/:userId', () => {
-  it('should update user details', async () => {
-    const admin = await createTestUser();
-    const authToken = generateAuthToken(admin.id, admin.email).accessToken;
+  it('should update own user details', async () => {
     const user = await createTestUser();
+    const authToken = generateAuthToken(user.id, user.email).accessToken;
 
     const updatedName = 'Updated Name';
-    const response = await authenticatedRequest(
-      'patch',
-      `${ENDPOINTS.user}/${user.id}`,
-      authToken
-    ).send({
+    const response = await authenticatedRequest('patch', `${ENDPOINTS.user}/${user.id}`, authToken).send({
       name: updatedName,
     });
 
@@ -28,8 +23,8 @@ describe('PATCH /api/users/:userId', () => {
   });
 
   it('should return 404 for non-existent user', async () => {
-    const admin = await createTestUser();
-    const authToken = generateAuthToken(admin.id, admin.email).accessToken;
+    const user = await createTestUser();
+    const authToken = generateAuthToken(user.id, user.email).accessToken;
 
     const response = await authenticatedRequest(
       'patch',
@@ -40,6 +35,22 @@ describe('PATCH /api/users/:userId', () => {
     });
 
     expectError(response, 404, 'User not found');
+  });
+
+  it('should forbid updating another user', async () => {
+    const owner = await createTestUser();
+    const otherUser = await createTestUser();
+    const authToken = generateAuthToken(otherUser.id, otherUser.email).accessToken;
+
+    const response = await authenticatedRequest(
+      'patch',
+      `${ENDPOINTS.user}/${owner.id}`,
+      authToken
+    ).send({
+      name: 'Not allowed',
+    });
+
+    expectError(response, 403, 'You do not have permission to update this user');
   });
 
   it('should require authentication', async () => {
