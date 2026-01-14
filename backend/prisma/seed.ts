@@ -1,12 +1,15 @@
-import { readFileSync } from 'node:fs';
+import fs from 'node:fs';
 import { join } from 'node:path';
 
-import { Operation, OPERATION_TYPE } from '@prisma';
+import { faker } from '@faker-js/faker';
+import { OPERATION_TYPE, Prisma } from '@prisma';
 import { hashSync } from 'bcrypt';
+import { Command } from 'commander';
 
 import CONFIG from '@/apps/config';
 import prisma from '@/apps/prisma';
-import { calculateOperation } from '@/modules/operation/operation.service';
+
+const DEFAULT_SEED_FILE_PATH = join(__dirname, 'seed-data.json');
 
 interface SeedData {
   users: Array<{ name: string; email: string }>;
@@ -21,217 +24,359 @@ interface SeedData {
   }>;
 }
 
-function getSeedMultiplier() {
-  const countFlagIndex = process.argv.findIndex((arg) => arg === '--count');
-  const rawValue =
-    (countFlagIndex > -1 ? process.argv[countFlagIndex + 1] : undefined) ??
-    process.argv.find((arg) => arg.startsWith('--count='))?.split('=')[1] ??
-    process.env.SEED_COUNT;
-
-  if (!rawValue) {
-    return 1;
-  }
-
-  const parsed = Number(rawValue);
-  if (!Number.isFinite(parsed) || parsed < 1) {
-    return 1;
-  }
-
-  return Math.floor(parsed);
+interface SeedContext {
+  batchSize: number;
+  usersCount: number;
+  discussionsCount: number;
+  operationsCount: number;
+  sampleMode: boolean;
+  cleanMode: boolean;
+  analytics: boolean;
+  startTime: number;
+  file: string;
+  password: string;
 }
 
-function withEmailSuffix(email: string, suffix: string) {
-  const atIndex = email.lastIndexOf('@');
-  if (atIndex <= 0) {
-    return `${email}+seed${suffix}`;
+function buildCLI() {
+  const program = new Command();
+
+  const helpText = [
+    '',
+    'Examples (single option):',
+    '  prisma-seed --sample                         Use sample data from file.',
+    '  prisma-seed --clean                          Clear tables before seeding.',
+    '  prisma-seed --users 500                      Generate 500 random users.',
+    '  prisma-seed --discussions 1000               Generate 1,000 discussions.',
+    '  prisma-seed --operations 20000               Generate 20,000 operations.',
+    '  prisma-seed --batchSize 5000                 Insert in batches of 5,000.',
+    '  prisma-seed --password "Demo@123456"         Use a custom user password.',
+    '  prisma-seed --analytics                      Print timing + memory stats.',
+    '  prisma-seed --file prisma/seed-data.json --sample  Use a custom sample file.',
+    '',
+    'Examples:',
+    '  prisma-seed --sample --clean                 Sample data with a clean start.',
+    '  prisma-seed --users 1000 --discussions 2000 --operations 10000',
+    '                                                Larger random dataset.',
+    '  prisma-seed --batchSize 5000 --analytics      Bigger batches with analytics.',
+    '  prisma-seed --sample --file prisma/seed-data.json --clean --analytics',
+    '                                                Sample file + clean + metrics.',
+    '  prisma-seed --users 5000 --operations 20000 --batchSize 2000 --analytics',
+    '                                                Heavy run with metrics.',
+    '',
+    'Notes:',
+    `  - --sample reads from --file (default: ${DEFAULT_SEED_FILE_PATH}).`,
+    '  - All count options accept integers >= 0.',
+    '  - --batchSize must be >= 1.',
+    '  - If running using script, you may add extra -- before passing options.',
+    '    example: yarn prisma:seed -- -- --users 5000 --clean',
+  ].join('\n');
+
+  program
+    .name('prisma-seed')
+    .description('High-performance Prisma seed runner')
+    .option('--sample', 'Seed only from JSON sample file')
+    .option('--clean', 'Clean database before seeding')
+    .option('-u, --users <number>', 'Number of users to generate in random mode (>= 0).', '100')
+    .option(
+      '-d, --discussions <number>',
+      'Number of discussions to generate in random mode (>= 0).',
+      '100'
+    )
+    .option(
+      '-o, --operations <number>',
+      'Number of operations to generate in random mode (>= 0).',
+      '100'
+    )
+    .option('-b, --batchSize <number>', 'Insert batch size for createMany (>= 1).', '1000')
+    .option(
+      '--password <string>',
+      'Password used for seeded users (hashed before insert).',
+      CONFIG.SEED_USER_PASSWORD
+    )
+    .option('--analytics', 'Print timing + memory usage at the end.')
+    .option(
+      '--file <path>',
+      'Path to sample JSON file when --sample is set.',
+      DEFAULT_SEED_FILE_PATH
+    )
+    .addHelpText('after', helpText)
+    .parse(process.argv);
+
+  const opts = program.opts();
+  const users = Number(opts.users);
+  const discussions = Number(opts.discussions);
+  const operations = Number(opts.operations);
+  const batchSize = Number(opts.batchSize);
+
+  if ([users, discussions, operations].some((value) => !Number.isFinite(value) || value < 0)) {
+    throw new Error('users, discussions, and operations must be numbers >= 0');
   }
 
-  const local = email.slice(0, atIndex);
-  const domain = email.slice(atIndex + 1);
-  return `${local}+seed${suffix}@${domain}`;
+  if (!Number.isFinite(batchSize) || batchSize < 1) {
+    throw new Error('batchSize must be a number >= 1');
+  }
+
+  return {
+    sample: Boolean(opts.sample),
+    clean: Boolean(opts.clean),
+    analytics: Boolean(opts.analytics),
+    file: opts.file,
+    users,
+    discussions,
+    operations,
+    batchSize,
+    password: opts.password,
+  };
 }
 
-function expandSeedData(seedData: SeedData, multiplier: number): SeedData {
-  if (multiplier <= 1) {
-    return seedData;
-  }
+async function cleanDatabase() {
+  console.log('🧹 Cleaning database...\n');
 
-  const users: SeedData['users'] = [];
-  const discussions: SeedData['discussions'] = [];
-  const operations: SeedData['operations'] = [];
+  await prisma.$transaction([
+    prisma.operation.deleteMany(),
+    prisma.discussion.deleteMany(),
+    prisma.user.deleteMany(),
+  ]);
 
-  const userBaseCount = seedData.users.length;
-  const discussionBaseCount = seedData.discussions.length;
-  const operationBaseCount = seedData.operations.length;
-
-  for (let index = 0; index < multiplier; index += 1) {
-    const isBase = index === 0;
-    const userOffset = index * userBaseCount;
-    const discussionOffset = index * discussionBaseCount;
-    const operationOffset = index * operationBaseCount;
-    const suffix = String(index + 1);
-
-    seedData.users.forEach((user) => {
-      users.push({
-        name: isBase ? user.name : `${user.name} ${suffix}`,
-        email: isBase ? user.email : withEmailSuffix(user.email, suffix),
-      });
-    });
-
-    seedData.discussions.forEach((discussion) => {
-      discussions.push({
-        title: isBase || !discussion.title ? discussion.title : `${discussion.title} #${suffix}`,
-        startingValue: discussion.startingValue,
-        createdByIndex: discussion.createdByIndex + userOffset,
-      });
-    });
-
-    seedData.operations.forEach((operation) => {
-      operations.push({
-        discussionIndex: operation.discussionIndex + discussionOffset,
-        parentOperationIndex:
-          operation.parentOperationIndex === null
-            ? null
-            : operation.parentOperationIndex + operationOffset,
-        operationType: operation.operationType,
-        value: operation.value,
-        totals: operation.totals,
-        createdByIndex: operation.createdByIndex + userOffset,
-      });
-    });
-  }
-
-  return { users, discussions, operations };
+  console.log('✅ Database cleaned\n');
 }
 
-/**
- * Seed script to populate database with demo data
- * - Reads data from seed-data.json
- * - Creates demo users with secure passwords from env
- * - Creates discussions and operations from JSON data
- */
-async function main() {
-  console.log('🌱 Starting database seed...\n');
+async function batchInsert<T>(
+  label: string,
+  total: number,
+  batchSize: number,
+  factory: (skip: number, take: number) => Promise<T[]>,
+  insert: (rows: T[]) => Promise<unknown>
+) {
+  let inserted = 0;
+  let batch = 0;
 
-  // Load seed data from JSON
-  const seedDataPath = join(__dirname, 'seed-data.json');
-  const seedData: SeedData = JSON.parse(readFileSync(seedDataPath, 'utf-8'));
-  const seedMultiplier = getSeedMultiplier();
-  const expandedSeedData = expandSeedData(seedData, seedMultiplier);
+  while (inserted < total) {
+    const take = Math.min(batchSize, total - inserted);
 
-  console.log('✅ Loaded seed data from JSON\n');
-  if (seedMultiplier > 1) {
-    console.log(`📈 Seed multiplier set to ${seedMultiplier}`);
-    console.log(
-      `   - Users: ${expandedSeedData.users.length}\n   - Discussions: ${expandedSeedData.discussions.length}\n   - Operations: ${expandedSeedData.operations.length}\n`
+    const rows = await factory(inserted, take);
+    await insert(rows);
+
+    inserted += take;
+    batch++;
+
+    const percent = ((inserted / total) * 100).toFixed(1);
+    process.stdout.write(
+      `\r⚙️  ${label} | batch: ${batch} | inserted: ${inserted}/${total} (${percent}%)`
     );
   }
 
-  // Hash the seed password from config
-  const hashedPassword = hashSync(CONFIG.SEED_USER_PASSWORD, 10);
+  console.log(`\n✅ ${label} completed\n`);
+}
 
-  // Clean existing data
-  console.log('🧹 Cleaning existing data...');
-  await prisma.operation.deleteMany();
-  await prisma.discussion.deleteMany();
-  await prisma.user.deleteMany();
-  console.log('✅ Existing data cleaned\n');
+function buildUsers(count: number, password: string): Prisma.UserCreateManyInput[] {
+  return Array.from({ length: count }).map(() => ({
+    name: faker.person.fullName(),
+    email: faker.internet.email({
+      lastName: `${faker.person.lastName()}_${faker.date.past().getTime()}`,
+    }),
+    createdAt: faker.date.recent({ days: 30 }),
+    password,
+  }));
+}
 
-  // Create demo users
-  console.log('👥 Creating demo users...');
+function buildDiscussions(
+  count: number,
+  userIds: { id: number }[]
+): Prisma.DiscussionCreateManyInput[] {
+  return Array.from({ length: count }).map(() => ({
+    title: faker.lorem.sentence(),
+    startingValue: faker.number.int({ min: 1, max: 1000 }),
+    createdBy: faker.helpers.arrayElement(userIds).id,
+    createdAt: faker.date.recent({ days: 20 }),
+  }));
+}
+
+function buildOperations(
+  count: number,
+  discussionIds: { id: number }[],
+  userIds: { id: number }[]
+): Prisma.OperationCreateManyInput[] {
+  return Array.from({ length: count }).map(() => ({
+    discussionId: faker.helpers.arrayElement(discussionIds).id,
+    operationType: faker.helpers.enumValue(OPERATION_TYPE),
+    value: faker.number.int({ min: -100, max: 300 }),
+    createdBy: faker.helpers.arrayElement(userIds).id,
+    createdAt: faker.date.recent({ days: 10 }),
+  }));
+}
+
+function loadSampleSeed(path: string): SeedData {
+  const seedDataPath = path;
+
+  if (!fs.existsSync(seedDataPath)) {
+    throw new Error('Sample file not found');
+  }
+  return JSON.parse(fs.readFileSync(seedDataPath, 'utf-8'));
+}
+
+async function seedSampleMode(context: SeedContext, data: SeedData) {
+  console.log('📦 Sample mode enabled\n');
+
+  console.log('👥 Creating demo users...\n');
+
+  // Validate if any of sample data mail already in use
+  const emails = data.users.map((user) => user.email);
+  const existingUsers = await prisma.user.findMany({ where: { email: { in: emails } } });
+  if (existingUsers.length > 0) {
+    throw new Error(
+      `Sample data contains users with email already in use: ${existingUsers
+        .map((user) => user.email)
+        .join(', ')}`
+    );
+  }
+
   await prisma.user.createMany({
-    data: expandedSeedData.users.map((userData) => ({
-      name: userData.name,
-      email: userData.email,
-      password: hashedPassword,
+    data: data.users.map((user) => ({
+      name: user.name,
+      email: user.email,
+      password: context.password,
     })),
   });
 
-  const users = await prisma.user.findMany({
-    orderBy: { id: 'asc' },
-    take: expandedSeedData.users.length,
-  });
+  const usersDB = await prisma.user.findMany({ select: { id: true } });
 
-  console.log('✅ Created', users.length, 'users\n');
+  console.log('✅ Created', usersDB.length, 'users\n');
 
-  // Create discussions
-  console.log('💬 Creating discussions...');
-  const discussionSeed = expandedSeedData.discussions.map((discussionData) => ({
-    title: discussionData.title,
-    startingValue: discussionData.startingValue,
-    createdBy: users[discussionData.createdByIndex].id,
-  }));
+  console.log('💬 Creating discussions...\n');
 
   await prisma.discussion.createMany({
-    data: discussionSeed,
+    data: data.discussions.map((discuss) => {
+      const user = usersDB[discuss.createdByIndex];
+
+      return {
+        title: discuss.title,
+        startingValue: discuss.startingValue,
+        createdBy: user.id,
+      };
+    }),
   });
 
-  const discussions = await prisma.discussion.findMany({
-    orderBy: { id: 'asc' },
-    take: discussionSeed.length,
+  const discussionsDB = await prisma.discussion.findMany({
+    select: { id: true, startingValue: true },
   });
 
-  console.log('✅ Created', discussions.length, 'discussions\n');
+  console.log('✅ Created', discussionsDB.length, 'discussions\n');
 
   // Create operations
-  console.log('🔢 Creating operations...');
-  const operations: Operation[] = [];
+  console.log('🔢 Creating operations...\n');
 
-  for (const operationData of expandedSeedData.operations) {
-    // Calculate beforeValue from parent or starting value
-    let beforeValue: number;
-    if (operationData.parentOperationIndex === null) {
-      // Root operation: beforeValue is the discussion's starting value
-      beforeValue = discussions[operationData.discussionIndex].startingValue;
-    } else {
-      // Child operation: beforeValue is parent's afterValue
-      beforeValue = operations[operationData.parentOperationIndex].afterValue;
-    }
+  await prisma.operation.createMany({
+    data: data.operations.map((operation) => ({
+      discussionId: discussionsDB[operation.discussionIndex].id,
+      parentId: null,
+      title: `${operation.operationType} ${operation.value}`,
+      operationType: OPERATION_TYPE[operation.operationType],
+      value: operation.value,
+      createdBy: usersDB[operation.createdByIndex].id,
+    })),
+  });
 
-    // Calculate afterValue based on operation type
-    // Calculate afterValue using shared service logic
-    const afterValue = calculateOperation(
-      beforeValue,
-      operationData.operationType,
-      operationData.value
-    );
+  const operationsDB = await prisma.operation.findMany({ select: { id: true } });
 
-    const operation = await prisma.operation.create({
-      data: {
-        discussionId: discussions[operationData.discussionIndex].id,
-        parentId:
-          operationData.parentOperationIndex === null
-            ? null
-            : operations[operationData.parentOperationIndex].id,
-        title: `${operationData.operationType} ${operationData.value}`,
-        operationType: OPERATION_TYPE[operationData.operationType],
-        value: operationData.value,
-        beforeValue,
-        afterValue,
-        createdBy: users[operationData.createdByIndex].id,
-      },
-    });
-    operations.push(operation);
+  console.log('✅ Created', operationsDB.length, 'operations\n');
+}
+
+async function seedRandomMode(context: SeedContext) {
+  console.log('🎲 Random data mode\n');
+
+  await batchInsert(
+    'Users',
+    context.usersCount,
+    context.batchSize,
+    async (_, take) => buildUsers(take, context.password),
+    async (rows) => prisma.user.createMany({ data: rows })
+  );
+
+  const userIds = await prisma.user.findMany({ select: { id: true } });
+
+  await batchInsert(
+    'Discussions',
+    context.discussionsCount,
+    context.batchSize,
+    async (_, take) => buildDiscussions(take, userIds),
+    async (rows) => prisma.discussion.createMany({ data: rows })
+  );
+
+  const discussionIds = await prisma.discussion.findMany({ select: { id: true } });
+
+  await batchInsert(
+    'Operations',
+    context.operationsCount,
+    context.batchSize,
+    async (_, take) => buildOperations(take, discussionIds, userIds),
+    async (rows) => prisma.operation.createMany({ data: rows })
+  );
+}
+
+async function main() {
+  const args = buildCLI();
+
+  // Hash the seed password from config
+  const hashedPassword = hashSync(args.password, 10);
+
+  const context: SeedContext = {
+    batchSize: args.batchSize,
+    usersCount: args.users || 100,
+    discussionsCount: args.discussions || 100,
+    operationsCount: args.operations || 100,
+    sampleMode: args.sample,
+    analytics: args.analytics,
+    startTime: Date.now(),
+    file: args.file,
+    password: hashedPassword,
+    cleanMode: args.clean,
+  };
+
+  console.log('🌱 Prisma Seed Runner\n');
+
+  if (context.cleanMode) {
+    await cleanDatabase();
   }
 
-  console.log('✅ Created', operations.length, 'operations\n');
+  const SAMPLE_DATA = loadSampleSeed(context.file);
 
-  console.log('✨ Seed completed successfully!\n');
+  if (context.sampleMode) {
+    await seedSampleMode(context, SAMPLE_DATA);
+  } else {
+    await seedRandomMode(context);
+  }
+
+  const firstUser = await prisma.user.findFirst();
+
+  const createdResources = {
+    users: context.sampleMode ? SAMPLE_DATA.users.length : context.usersCount,
+    discussions: context.sampleMode ? SAMPLE_DATA.discussions.length : context.discussionsCount,
+    operations: context.sampleMode ? SAMPLE_DATA.operations.length : context.operationsCount,
+  };
+
+  console.log('\n✨ Seed completed successfully!\n');
   console.log('📊 Summary:');
-  console.log('   - Users:', users.length);
-  console.log('   - Discussions:', discussions.length);
-  console.log('   - Operations:', operations.length);
+  console.log('   - Users:', createdResources.users);
+  console.log('   - Discussions:', createdResources.discussions);
+  console.log('   - Operations:', createdResources.operations);
+
   console.log(`\n🔐 Demo user credentials:`);
-  console.log(`   Email: ${users[0].email} (or any demo user)`);
-  console.log('   Password:', CONFIG.SEED_USER_PASSWORD);
+  console.log(`   Email: ${firstUser?.email ?? 'N/A'} (or any demo user)`);
+  console.log('   Password:', args.password);
+
+  if (context.analytics) {
+    const mem = process.memoryUsage();
+    console.log('\n📈 Analytics:');
+    console.log('   - Time:', ((Date.now() - context.startTime) / 1000).toFixed(2), 's');
+    console.log('   - RSS:', (mem.rss / 1024 / 1024).toFixed(1), 'MB');
+    console.log('   - Heap:', (mem.heapUsed / 1024 / 1024).toFixed(1), 'MB');
+  }
 }
 
 main()
-  .catch((error) => {
-    console.error('❌ Seed failed:');
-    console.error(error);
+  .catch((e) => {
+    console.error('❌ Seed failed:', e);
     process.exit(1);
   })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+  .finally(async () => prisma.$disconnect());
