@@ -14,7 +14,7 @@
     "@tailwindcss/vite": "^4.1.17",
     "@xyflow/react": "^12.9.3",
     "antd": "^5.28.1",
-    "axios": "^1.13.2",
+    "axios": "^1.13.5",
     "lucide-react": "^0.553.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
